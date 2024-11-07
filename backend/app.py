@@ -1,6 +1,8 @@
 import os
+import jwt
+from datetime import datetime, timedelta, timezone
 
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -14,12 +16,28 @@ load_dotenv()
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-app.secret_key = os.getenv("SECRET_KEY")
+app.config['SECRET_KEY']= os.getenv("SECRET_KEY")
 
 db.init_app(app)
 
 newsapi = NewsApiClient(api_key=os.getenv("NEWSAPI_API_KEY"))
+
+def create_access_token(user_id):
+    payload = {
+        'user_id': str(user_id),
+        'exp': datetime.now(timezone.utc) + timedelta(hours=1)
+    }
+    return jwt.encode(payload, app.config['SECRET_KEY'], algorithm='HS256')
+
+def decode_access_token(token):
+    try:
+        payload = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+        return payload['user_id']
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
 
 @app.route("/")
 def index():
@@ -43,8 +61,6 @@ def register():
             new_user = User(username=username, name=name, email=email, password=hashed_password)
             db.session.add(new_user)
             db.session.commit()
-
-            session['username'] = username
         except Exception as e:
             db.session.rollback()
             return jsonify({"Error" : str(e)}), 400
@@ -66,22 +82,24 @@ def login():
         elif not check_password_hash(user.password, password):
             return jsonify({"error": "Invalid password."}), 400
         
-        session.clear()
-        session["user_id"] = user.id
+        access_token = create_access_token(user.id)
+        return jsonify({"message": "User logged in successfully.", "access_token": access_token}), 200
 
-        return jsonify({"message": "User logged in successfully."}), 200
-        
-@app.route("/api/auth/check-session", methods=["GET"])
-def check_session():
-    if "user_id" in session:
-        return jsonify({"message": "User is logged in"}), 200
-    else:
-        return jsonify({"error": "User is not logged in"}), 401
 
-@app.route("/api/auth/logout", methods=["POST"])
-def logout():
-    session.clear()
-    return jsonify({"message": "User logged out successfully"}), 200
+@app.route("/api/auth/protected", methods=["GET"])
+def protected():
+    token = request.headers.get('Authorization')
+
+    if not token:
+        return jsonify({"error": "Access token missing."})
+    
+    token = token.split()[1]
+    user_id = decode_access_token(token)
+
+    if not user_id:
+        return jsonify({"error": "Invalid or expired token."}), 401
+
+    return jsonify({"message": f"User {user_id} is authenticated."}), 200
 
 
 if __name__ == '__main__':
