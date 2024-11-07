@@ -1,16 +1,15 @@
-
+import uuid
 from datetime import datetime, timezone
 from db import db
 
 
 saved = db.Table('saved',
-    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('user_id', db.UUID(as_uuid=True), db.ForeignKey('user.id'), primary_key=True),
     db.Column('document_id', db.Integer, db.ForeignKey('document.id'), primary_key=True)
 )
 
-
 class User(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, unique=True, nullable=False)
     username = db.Column(db.Text, unique=True, nullable=False)
     name = db.Column(db.Text)
     email = db.Column(db.Text, unique=True, nullable=False)
@@ -18,7 +17,6 @@ class User(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     saved_documents = db.relationship('Document', secondary=saved, back_populates='saved_by')
-
 
     def __repr__(self):
         return f'<User {self.username}>'
@@ -42,7 +40,6 @@ class Document(db.Model):
 class Summary(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     content = db.Column(db.Text, nullable=False)
-
     document_id = db.Column(db.Integer, db.ForeignKey('document.id'), nullable=False)
     document = db.relationship('Document', back_populates='summary')
 
