@@ -3,6 +3,7 @@ import jwt
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -11,12 +12,17 @@ from newsapi import NewsApiClient
 from db import db
 from models import User
 
+from sqlalchemy.exc import IntegrityError
+
 load_dotenv()
 
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config['SECRET_KEY']= os.getenv("SECRET_KEY")
+
+
+CORS(app, resources={r"/*": {"origins": "http://localhost:3000"}})
 
 db.init_app(app)
 
@@ -53,7 +59,7 @@ def register():
         password = body.get("password")
         name = body.get("name")
 
-        if not(username and email and password and name):
+        if not (username and email and password and name):
             return jsonify({"error": "All fields are required (username, email, password, & name)."}), 400
 
         try:
@@ -61,9 +67,14 @@ def register():
             new_user = User(username=username, name=name, email=email, password=hashed_password)
             db.session.add(new_user)
             db.session.commit()
+        except IntegrityError as e:
+            db.session.rollback()
+            if 'unique constraint' in str(e.orig):
+                return jsonify({"error": "User with this email or username already exists."}), 400
+            return jsonify({"error": "Database integrity error."}), 400
         except Exception as e:
             db.session.rollback()
-            return jsonify({"Error" : str(e)}), 400
+            return jsonify({"error": "An unexpected error occurred."}), 500
     
         return jsonify({"message": "User registered successfully."}), 201
 
@@ -89,17 +100,26 @@ def login():
 @app.route("/api/auth/protected", methods=["GET"])
 def protected():
     token = request.headers.get('Authorization')
-
     if not token:
         return jsonify({"error": "Access token missing."})
     
     token = token.split()[1]
+
     user_id = decode_access_token(token)
 
     if not user_id:
         return jsonify({"error": "Invalid or expired token."}), 401
 
-    return jsonify({"message": f"User {user_id} is authenticated."}), 200
+    user = User.query.filter_by(id=user_id).first()
+    if not user:
+        return jsonify({"error": "User not found."}), 404
+    return jsonify(
+        {"user": {
+            "username" : user.username,
+            "name": user.name,
+            "createdAt": user.created_at,
+        }, 
+        "message": f"User is authenticated."}), 200
 
 
 if __name__ == '__main__':
