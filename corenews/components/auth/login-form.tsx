@@ -13,6 +13,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
+import { useAuth } from "@/providers/auth-provider";
 
 const loginSchema = z.object({
   email: z
@@ -29,6 +30,7 @@ const loginSchema = z.object({
 });
 
 const LoginForm = () => {
+  const { setUser } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const router = useRouter();
@@ -36,6 +38,8 @@ const LoginForm = () => {
   const onSubmit = async (values: z.infer<typeof loginSchema>) => {
     try {
       setIsLoading(true);
+      setErrorMessage("");
+
       const response = await axios({
         method: "POST",
         url: process.env.NEXT_PUBLIC_BACKEND_URL + "/auth/login",
@@ -46,22 +50,23 @@ const LoginForm = () => {
       });
 
       if (response.status === 200) {
-        // response.data.access_token
         const token = response.data.access_token;
         localStorage.setItem("corenews-access-token", token);
         Cookies.set("corenews-access-token", token, { expires: 1, secure: true, sameSite: "strict" });
-
+        setUser(response.data.user);
         toast.success("User logged in successfully.");
         setIsLoading(false);
         router.refresh();
         router.push("/dashboard");
         return;
       }
-    } catch (error: any) {
-      console.log("[LOGIN ERROR]", error);
-      setErrorMessage(error.response.data.error);
-      toast.error(errorMessage || "Something went wrong.");
+    } catch (error) {
       setIsLoading(false);
+      // Error: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+      const errorMsg = (axios.isAxiosError(error) && error.response?.data?.error) || "Something went wrong.";
+      setErrorMessage(errorMsg);
+      toast.error(errorMsg);
+      console.log("[LOGIN ERROR]", error);
     }
   };
   const form = useForm<z.infer<typeof loginSchema>>({
@@ -73,6 +78,7 @@ const LoginForm = () => {
   });
   return (
     <div className="p-8">
+      <div>{errorMessage}</div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <FormField

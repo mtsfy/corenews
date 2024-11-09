@@ -70,9 +70,13 @@ const RegisterForm = () => {
         router.push("/login");
         return;
       }
-    } catch (error: any) {
+    } catch (error) {
       console.log("[REGISTER ERROR]", error);
-      setErrorMessage(error.response.data.error);
+      if (axios.isAxiosError(error) && error.response) {
+        setErrorMessage((error.response.data as { error: string }).error);
+      } else {
+        setErrorMessage("An unexpected error occurred.");
+      }
       toast.error(errorMessage || "Something went wrong.");
       setIsLoading(false);
     }

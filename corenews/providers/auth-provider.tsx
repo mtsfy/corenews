@@ -40,10 +40,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          withCredentials: true,
         });
-        setUser(response.data.user);
+        if (response.status === 200) {
+          setUser(response.data.user);
+          return;
+        }
       } catch (error) {
-        console.error("Failed to fetch user:", error);
+        console.log("Failed to fetch user:", error);
+        setUser(null);
       } finally {
         setLoading(false);
       }
