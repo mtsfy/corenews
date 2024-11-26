@@ -1,15 +1,17 @@
+import json
 import os
 import jwt
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, request, jsonify
+from flask_migrate import Migrate
 from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from newsapi import NewsApiClient
-from db import db
-from models import User
+from database import db
+from models import User, Document
 from sqlalchemy.exc import IntegrityError
 
 load_dotenv()
@@ -20,9 +22,10 @@ CORS(app, supports_credentials=True, origins=allowed_origins)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("SQLALCHEMY_DATABASE_URI")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-app.config['SECRET_KEY']= os.getenv("SECRET_KEY")
+app.config["SECRET_KEY"]= os.getenv("SECRET_KEY")
 
 db.init_app(app)
+migrate = Migrate(app, db)
 
 @app.after_request
 def add_cors_headers(response):
@@ -125,8 +128,58 @@ def protected():
             "username" : user.username,
             "name": user.name,
             "createdAt": user.created_at,
+            "frequency": user.frequency,
+            "topics": user.topics,
+            "regions": user.regions,
+            "sources": user.sources,
         }, 
         "message": f"User is authenticated."}), 200
+
+@app.route("/api/set-preferences", methods=["POST", "PATCH"])
+def set_preferences():
+    token = request.headers.get('Authorization')
+    if not token:
+        return jsonify({"error": "Access token missing."}), 400
+
+    token = token.split()[1]
+    user_id = decode_access_token(token) 
+
+    if not user_id:
+        return jsonify({"error": "Invalid or expired token."}), 401
+
+    user = User.query.filter_by(id=user_id).first()
+    if not user:
+        return jsonify({"error": "User not found."}), 404
+    
+    body = request.get_json()
+
+    if not body:
+        return jsonify({"error": "No data provided."}), 400
+    
+    if request.method == "POST":
+        topics = body.get("topics")
+        sources = body.get("sources")
+        regions = body.get("regions")
+        frequency = body.get("frequency")  
+
+        user.topics = topics
+        user.sources = sources 
+        user.regions = regions 
+        user.frequency = frequency
+
+    elif request.method == "PATCH":
+        if "topics" in body:
+            user.topics = body["topics"]
+        if "sources" in body:
+            user.sources = body["sources"]
+        if "regions" in body:
+            user.regions = body["regions"]
+        if "frequency" in body:
+            user.frequency = body["frequency"]
+
+    db.session.commit()
+
+    return jsonify({"message": "User preferences set.", "user": user.to_dict()}), 200
 
 if __name__ == '__main__':
     with app.app_context():
