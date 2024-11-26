@@ -9,6 +9,9 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from redis import Redis
+from rq import Queue
+
 from newsapi import NewsApiClient
 from database import db
 from models import User, Document
@@ -26,6 +29,9 @@ app.config["SECRET_KEY"]= os.getenv("SECRET_KEY")
 
 db.init_app(app)
 migrate = Migrate(app, db)
+
+redis_conn = Redis(host="localhost", port=6379, db=0)
+queue = Queue(connection=redis_conn)
 
 @app.after_request
 def add_cors_headers(response):
@@ -180,6 +186,13 @@ def set_preferences():
     db.session.commit()
 
     return jsonify({"message": "User preferences set.", "user": user.to_dict()}), 200
+
+@app.route("/api/get-everything", methods=["GET"])
+def get_everything():
+    documents = Document.query.all()
+    documents_dict = [document.to_dict() for document in documents]
+    
+    return jsonify({"length": len(documents_dict), "documents": documents_dict})
 
 if __name__ == '__main__':
     with app.app_context():
