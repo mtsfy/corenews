@@ -29,7 +29,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <ToasterProvider />
-        <AuthProvider>{children}</AuthProvider>
+        <div className="inset-0 -z-10 w-full h-full bg-white bg-[linear-gradient(to_right,#f0f0f0_1px,transparent_1px),linear-gradient(to_bottom,#f0f0f0_1px,transparent_1px)] bg-[size:6rem_4rem]">
+          <AuthProvider>{children}</AuthProvider>
+        </div>
       </body>
     </html>
   );
