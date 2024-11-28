@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import { useAuth } from "@/providers/auth-provider";
+import Link from "next/link";
 
 const loginSchema = z.object({
   email: z
@@ -77,8 +78,10 @@ const LoginForm = () => {
     },
   });
   return (
-    <div className="p-8">
-      <div>{errorMessage}</div>
+    <div className="w-1/2">
+      <div className="my-8">
+        <h1 className="font-bold text-3xl text-sky-600">Log in to your account</h1>
+      </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <FormField
@@ -107,11 +110,20 @@ const LoginForm = () => {
               </FormItem>
             )}
           />
-          <Button type="submit" disabled={isLoading}>
-            Submit
+          <Button type="submit" disabled={isLoading} className="bg-sky-600 hover:opacity-80 hover:bg-sky-600 transition">
+            Log in
           </Button>
         </form>
       </Form>
+      <div className=" text-red-500 my-6">{errorMessage}</div>
+      <div className="mt-6">
+        <p className="font-light">
+          Don&apos;t have a CoreNews account?{" "}
+          <Link href={"/register"} className="underline font-bold text-sky-600 hover:opacity-80 hover:text-sky-600 transition">
+            Sign up
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };

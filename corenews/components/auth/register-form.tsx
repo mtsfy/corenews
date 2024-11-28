@@ -12,6 +12,7 @@ import { useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const registerSchema = z
   .object({
@@ -92,7 +93,10 @@ const RegisterForm = () => {
     },
   });
   return (
-    <div className="p-8">
+    <div className="w-1/2">
+      <div className="my-8">
+        <h1 className="font-bold text-3xl text-sky-600">Create your free account</h1>
+      </div>
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <FormField
@@ -160,11 +164,19 @@ const RegisterForm = () => {
               </FormItem>
             )}
           />
-          <Button type="submit" disabled={isLoading}>
-            Submit
+          <Button type="submit" disabled={isLoading} className="bg-sky-600 hover:opacity-80 hover:bg-sky-600 transition">
+            Create account
           </Button>
         </form>
       </Form>
+      <div className="mt-6">
+        <p className="font-light">
+          Already have an account?{" "}
+          <Link href={"/login"} className="underline font-bold text-sky-600 hover:opacity-80 hover:text-sky-600 transition">
+            Log in
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };
