@@ -79,3 +79,10 @@ class Summary(db.Model):
 
     def __repr__(self):
         return f'<Summary {self.id}>'
+
+    def to_dict(self): 
+        return {
+            "id": self.id,
+            "content": self.content,
+            "documet_id": self.document_id
+        }

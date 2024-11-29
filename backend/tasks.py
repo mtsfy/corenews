@@ -1,4 +1,8 @@
+import json
+import os
 import time
+
+from dotenv import load_dotenv
 from models import Document, Summary
 from app import app, db, queue
 
@@ -10,6 +14,15 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 
+from langchain_openai import ChatOpenAI
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains.summarize import load_summarize_chain
+from langchain_core.prompts import PromptTemplate
+from langchain_core.documents import Document as LangDocument
+
+load_dotenv()
+
+os.environ['LANGCHAIN_TRACING_V2'] = 'true'
 
 def fetch_document(document_id):
     with app.app_context():
@@ -43,7 +56,7 @@ def fetch_document(document_id):
 
             for _ in range(3):
                 try:
-                    main_article = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "article__main")))
+                    main_article = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "article__main"))) # currently only cnn
                     break
                 except TimeoutException:
                     print("Retrying...")
@@ -55,9 +68,9 @@ def fetch_document(document_id):
             article_content = main_article.get_attribute('innerText')  
             paragraph = ' '.join(article_content.split())
 
-            if not paragraph.strip():  # If the content is empty or only whitespace
+            if not paragraph.strip():  
                 print(f"Unable to fetch content from URL: {url}. Content is empty.")
-                return  # Skip processing
+                return 
 
             print(paragraph)
             
@@ -74,17 +87,89 @@ def fetch_document(document_id):
 
 def summarize_document(document_id):
     with app.app_context(): 
-        document = Document.query.get(document_id)
-
+        document = Document.query.filter_by(id=document_id).first()
         if document:
-            summary_content = f"This is a summary for document ID {document_id}"
-            summary = Summary(content=summary_content, document_id=document.id)
+            content = document.content
 
-            db.session.add(summary)
+            doc = LangDocument(page_content=content) # metadata={"title": document.title, "source": document.source}
+
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=2000,
+                chunk_overlap=200,
+            )
+
+            doc_splits = text_splitter.split_documents([doc])
+            print(f"Summarizing: {document.title}")
+            print("DOCS_SIZE: ", len(doc_splits))
+
+            llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+
+            map_template = """
+            Summarize the following section of the document by capturing its main points and key details in 8 sentences or fewer. 
+            Ensure the summary is concise, clear, and accurately reflects the content of the section without any extraneous information.
+
+            Document Section: `{text}`
+
+            Summary:
+            """
+            map_prompt = PromptTemplate.from_template(template=map_template)
+
+            reduce_template = """
+            Combine the section summaries into a single cohesive and informative summary of the document. 
+            The final summary must include an introduction, main points, and a conclusion that captures the essence of the entire document. 
+            Provide a generic title related to the document's topic at the start.
+
+            Summaries: `{text}`
+            """
+            reduce_prompt = PromptTemplate.from_template(template=reduce_template)
+
+            summary_chain = load_summarize_chain(
+                llm=llm,
+                chain_type="map_reduce",
+                map_prompt=map_prompt,
+                combine_prompt=reduce_prompt,
+                output_key="summary"
+            )
+
+            response = summary_chain.invoke(doc_splits)
+            summary = response["summary"]
+
+
+            summary_obj = Summary(content=summary, document_id=document.id)
+            db.session.add(summary_obj)
+
+            topics_template = """
+            Based on the following categories, identify the specific topics this summary belongs to. If the summary is relevant to multiple categories, include all applicable topics in the response:
+
+            1. Business
+            2. Entertainment
+            3. General
+            4. Health
+            5. Science
+            6. Sports
+            7. Technology
+            8. Politics
+            9. Environment
+
+            Summary: `{summary}`
+
+            Return the result in JSON format as follows:
+            - "topics": [List of relevant topics]
+            """
+            
+            topics_prompt = PromptTemplate.from_template(template=topics_template)
+            topics_chain = topics_prompt | llm
+
+            response = topics_chain.invoke({"summary": summary})
+            response = json.loads(response.content)
+
+            document.topics = response["topics"]
             db.session.commit()
+
+            print(response["topics"])
             print(f"Document {document_id} summarized.")
 
-            return summary_content
+            return
         else:
             print(f"Document {document_id} not found.")
-            return None
+            return

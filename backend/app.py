@@ -14,7 +14,7 @@ from rq import Queue
 
 from newsapi import NewsApiClient
 from database import db
-from models import User, Document
+from models import Summary, User, Document
 from sqlalchemy.exc import IntegrityError
 
 load_dotenv()
@@ -104,15 +104,13 @@ def login():
     if not user:
         return jsonify({"error": "User not found."}), 400
     elif not check_password_hash(user.password, password):
-        return jsonify({"error": "Invalid password."}), 400
+        return jsonify({"error": "User not found."}), 400
     
     access_token = create_access_token(user.id)
     return jsonify({"message": "User logged in successfully.", "access_token": access_token, 
-            "user": {
-                "username" : user.username,
-                "name": user.name,
-                "createdAt": user.created_at,
-            },}), 200
+            "user": 
+                user.to_dict()
+            ,}), 200
 
 @app.route("/api/auth/protected", methods=["GET"])
 def protected():
@@ -130,15 +128,7 @@ def protected():
     if not user:
         return jsonify({"error": "User not found."}), 404
     return jsonify(
-        {"user": {
-            "username" : user.username,
-            "name": user.name,
-            "createdAt": user.created_at,
-            "frequency": user.frequency,
-            "topics": user.topics,
-            "regions": user.regions,
-            "sources": user.sources,
-        }, 
+        {"user": user.to_dict(), 
         "message": f"User is authenticated."}), 200
 
 @app.route("/api/set-preferences", methods=["POST", "PATCH"])
@@ -193,6 +183,13 @@ def get_everything():
     documents_dict = [document.to_dict() for document in documents]
     
     return jsonify({"length": len(documents_dict), "documents": documents_dict})
+
+@app.route("/api/get-summaries", methods=["GET"])
+def get_summaries():
+    summaries = Summary.query.all()
+    summaries_dict = [summary.to_dict() for summary in summaries]
+
+    return jsonify({"length": len(summaries_dict), "summaries": summaries_dict})
 
 if __name__ == '__main__':
     with app.app_context():
