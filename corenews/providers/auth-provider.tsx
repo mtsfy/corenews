@@ -3,12 +3,6 @@
 import axios from "axios";
 import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-interface User {
-  id: string;
-  email: string;
-  name: string;
-}
-
 interface AuthContextType {
   user: User | null;
   setUser: React.Dispatch<React.SetStateAction<User | null>>;

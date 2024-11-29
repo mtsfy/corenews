@@ -16,7 +16,7 @@ const LogoutButton = () => {
 
   return (
     <Button variant="destructive" onClick={onSubmit}>
-      Logout
+      Sign Out
     </Button>
   );
 };

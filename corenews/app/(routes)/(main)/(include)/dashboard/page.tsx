@@ -20,7 +20,7 @@ const Dashboard = () => {
   if (!user) return null;
 
   return (
-    <div>
+    <div className="min-h-screen">
       Hello, {user.name}
       <LogoutButton />
     </div>
